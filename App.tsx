@@ -43,19 +43,57 @@ const App: React.FC = () => {
   const historyRef = useRef<ComicFace[]>([]);
 
   // --- AI Helpers ---
-  // Helper to always get a fresh instance with the selected key
+  
+  // Robust API Key Retrieval for Netlify/Vite/CRA
+  const getApiKey = (): string | undefined => {
+      let key = undefined;
+      
+      // 1. Try Vite standard (most likely for Netlify modern builds)
+      try {
+          // @ts-ignore
+          if (import.meta.env && import.meta.env.VITE_API_KEY) key = import.meta.env.VITE_API_KEY;
+      } catch (e) {}
+
+      // 2. Try CRA standard
+      if (!key) {
+          try {
+              if (process.env.REACT_APP_API_KEY) key = process.env.REACT_APP_API_KEY;
+          } catch (e) {}
+      }
+
+      // 3. Try generic (rarely works in browser unless configured)
+      if (!key) {
+          try {
+              if (process.env.API_KEY) key = process.env.API_KEY;
+          } catch (e) {}
+      }
+      
+      // Cleanup: remove accidental quotes if user added them in Netlify
+      if (key) {
+          return key.replace(/["']/g, "").trim();
+      }
+
+      return undefined;
+  };
+
   const getAI = () => {
-    if (!process.env.API_KEY) {
-      throw new Error("API Key not found. Please set process.env.API_KEY in your Netlify settings.");
+    const key = getApiKey();
+    if (!key) {
+      throw new Error("API Key not found.");
     }
-    return new GoogleGenAI({ apiKey: process.env.API_KEY });
+    return new GoogleGenAI({ apiKey: key });
   };
 
   const handleAPIError = (e: any) => {
     const msg = String(e);
     console.error("API Error:", msg);
-    if (msg.includes('API_KEY') || msg.includes('403')) {
-      alert("Ошибка API Ключа. Пожалуйста, убедитесь, что API_KEY настроен в переменных среды Netlify.");
+    if (msg.includes('API Key not found') || msg.includes('403') || msg.includes('API_KEY')) {
+      alert("ОШИБКА: API Ключ не найден или недействителен.\n\nВАЖНО ДЛЯ NETLIFY:\nПеременная должна называться 'VITE_API_KEY' (а не просто API_KEY).\n\nПроверьте настройки Netlify > Site settings > Environment variables.");
+    } else {
+      // Only alert on critical errors that aren't just "safety" blocks
+      if (!msg.includes('SAFETY')) {
+        console.warn("Non-critical AI generation issue:", msg);
+      }
     }
   };
 
@@ -107,8 +145,6 @@ const App: React.FC = () => {
         coreDriver += " SETTING: Sheregesh Ski Resort (Siberia). VIBE: R-rated Comedy like 'The Hangover' (Мальчишник в Вегасе). Chaos, extreme partying, alcohol, snowboarding stunts, and memory loss. PLOT: The heroes party too hard, blackout, and wake up to a ridiculous mystery.";
     }
     
-    const isSliceOfLife = selectedGenre.includes("Комедия") || selectedGenre.includes("Подростковая") || selectedGenre.includes("Повседневность");
-
     // Guardrails to prevent everything becoming "Quantum Sci-Fi"
     const guardrails = `
     NEGATIVE CONSTRAINTS:
@@ -341,8 +377,9 @@ OUTPUT STRICT JSON ONLY (No markdown formatting):
   }
 
   const launchStory = async () => {
-    if (!process.env.API_KEY) {
-      alert("API Key не найден. Убедитесь, что переменная среды API_KEY установлена в Netlify.");
+    const key = getApiKey();
+    if (!key) {
+      alert("API Ключ не найден.\n\nЕсли вы используете Netlify, убедитесь, что переменная среды называется 'VITE_API_KEY', а не 'API_KEY'.");
       return;
     }
     
