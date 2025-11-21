@@ -24,7 +24,7 @@ export const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ onContinue }) => {
           Требуется секретная личность!
         </h2>
         
-        <p className="font-comic text-xl text-black mb-6 leading-relaxed">
+        <p className="text-xl text-black mb-6 leading-relaxed">
           Стой, гражданин! Чтобы получить доступ к мультивселенной (и создавать эти потрясающие комиксы), тебе нужен <span className="font-bold bg-yellow-200 px-1 border border-black">платный API ключ</span>.
         </p>
 
