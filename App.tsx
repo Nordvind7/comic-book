@@ -10,8 +10,6 @@ import jsPDF from 'jspdf';
 import { MAX_STORY_PAGES, BACK_COVER_PAGE, TOTAL_PAGES, INITIAL_PAGES, BATCH_SIZE, DECISION_PAGES, GENRES, TONES, LANGUAGES, ComicFace, Beat, Persona } from './types';
 import { Setup } from './Setup';
 import { Book } from './Book';
-import { useApiKey } from './useApiKey';
-import { ApiKeyDialog } from './ApiKeyDialog';
 
 // --- Constants ---
 const MODEL_V3 = "gemini-3-pro-image-preview";
@@ -19,9 +17,6 @@ const MODEL_IMAGE_GEN_NAME = MODEL_V3;
 const MODEL_TEXT_NAME = MODEL_V3;
 
 const App: React.FC = () => {
-  // --- API Key Hook ---
-  const { validateApiKey, setShowApiKeyDialog, showApiKeyDialog, handleApiKeyDialogContinue } = useApiKey();
-
   const [hero, setHeroState] = useState<Persona | null>(null);
   const [friend, setFriendState] = useState<Persona | null>(null);
   const [selectedGenre, setSelectedGenre] = useState(GENRES[0]);
@@ -50,18 +45,17 @@ const App: React.FC = () => {
   // --- AI Helpers ---
   // Helper to always get a fresh instance with the selected key
   const getAI = () => {
+    if (!process.env.API_KEY) {
+      throw new Error("API Key not found. Please set process.env.API_KEY in your Netlify settings.");
+    }
     return new GoogleGenAI({ apiKey: process.env.API_KEY });
   };
 
   const handleAPIError = (e: any) => {
     const msg = String(e);
     console.error("API Error:", msg);
-    if (
-      msg.includes('Requested entity was not found') || 
-      msg.includes('API_KEY_INVALID') || 
-      msg.toLowerCase().includes('permission denied')
-    ) {
-      setShowApiKeyDialog(true);
+    if (msg.includes('API_KEY') || msg.includes('403')) {
+      alert("Ошибка API Ключа. Пожалуйста, убедитесь, что API_KEY настроен в переменных среды Netlify.");
     }
   };
 
@@ -110,7 +104,7 @@ const App: React.FC = () => {
         coreDriver = `STORY PREMISE: ${customPremise || "A totally unique, unpredictable adventure"}. (Follow this premise strictly over standard genre tropes).`;
     }
     if (selectedGenre === 'Поездка в Шерегеш') {
-        coreDriver += " SETTING: Sheregesh Ski Resort (Siberia). Snow, mountains, skiing/snowboarding, cozy wooden cabins, yeti legends. VIBE: Adventure, winter fun, maybe a bit of mystery.";
+        coreDriver += " SETTING: Sheregesh Ski Resort (Siberia). VIBE: R-rated Comedy like 'The Hangover' (Мальчишник в Вегасе). Chaos, extreme partying, alcohol, snowboarding stunts, and memory loss. PLOT: The heroes party too hard, blackout, and wake up to a ridiculous mystery.";
     }
     
     const isSliceOfLife = selectedGenre.includes("Комедия") || selectedGenre.includes("Подростковая") || selectedGenre.includes("Повседневность");
@@ -132,17 +126,28 @@ const App: React.FC = () => {
     if (isFinalPage) {
         instruction += " FINAL PAGE. KARMIC CLIFFHANGER REQUIRED. You MUST explicitly reference the User's choice from PAGE 3 in the narrative and show how that specific philosophy led to this conclusion. Text must end with 'ПРОДОЛЖЕНИЕ СЛЕДУЕТ...' (or localized equivalent).";
     } else if (isDecisionPage) {
-        instruction += " End with a PSYCHOLOGICAL choice about VALUES, RELATIONSHIPS, or RISK. (e.g., Truth vs. Safety, Forgive vs. Avenge). The options must NOT be simple physical actions like 'Go Left'.";
-    } else {
-        // Neutralized Narrative Arc to avoid forcing "scary mystery" tones if the genre doesn't call for it.
-        if (pageNum === 1) {
-            instruction += " INCITING INCIDENT. An event disrupts the status quo. Establish the genre's intended mood. (If Slice of Life: A social snag/surprise. If Adventure: A call to action).";
-        } else if (pageNum <= 4) {
-            instruction += " RISING ACTION. The heroes engage with the new situation. Focus on dialogue, character dynamics, and initial challenges.";
-        } else if (pageNum <= 8) {
-            instruction += " COMPLICATION. A twist occurs! A secret is revealed, a misunderstanding deepens, or the path is blocked. (Keep intensity appropriate to Genre - e.g. Social awkwardness for Comedy, Danger for Horror).";
+        if (selectedGenre === 'Поездка в Шерегеш') {
+             instruction += " DECISION POINT: The party is out of control. They must make a RECKLESS/FUN choice that leads to a blackout. (e.g., 'Challenge the Yeti mascot' vs 'Launch fireworks off the roof').";
         } else {
-            instruction += " CLIMAX. The confrontation with the main conflict. The truth comes out, the contest ends, or the battle is fought.";
+             instruction += " End with a PSYCHOLOGICAL choice about VALUES, RELATIONSHIPS, or RISK. (e.g., Truth vs. Safety, Forgive vs. Avenge). The options must NOT be simple physical actions like 'Go Left'.";
+        }
+    } else {
+        if (selectedGenre === 'Поездка в Шерегеш') {
+            if (pageNum === 1) instruction += " THE ARRIVAL. Check-in at Sheregesh. The vibe is ecstatic. Ready to shred powder and drink all night.";
+            else if (pageNum === 2) instruction += " THE RAGE. Snowboarding stunts mixed with apres-ski shots. The party escalates. Everything is loud and fun.";
+            else if (pageNum === 4) instruction += " THE MORNING AFTER. Total silence. Waking up with a massive hangover in a weird place (e.g. sauna, snowbank). Memory loss: 'What happened?'";
+            else instruction += " THE HANGOVER QUEST. Trying to piece together the wild night while dealing with a throbbing headache and ridiculous consequences.";
+        } else {
+            // Neutralized Narrative Arc to avoid forcing "scary mystery" tones if the genre doesn't call for it.
+            if (pageNum === 1) {
+                instruction += " INCITING INCIDENT. An event disrupts the status quo. Establish the genre's intended mood. (If Slice of Life: A social snag/surprise. If Adventure: A call to action).";
+            } else if (pageNum <= 4) {
+                instruction += " RISING ACTION. The heroes engage with the new situation. Focus on dialogue, character dynamics, and initial challenges.";
+            } else if (pageNum <= 8) {
+                instruction += " COMPLICATION. A twist occurs! A secret is revealed, a misunderstanding deepens, or the path is blocked. (Keep intensity appropriate to Genre - e.g. Social awkwardness for Comedy, Danger for Horror).";
+            } else {
+                instruction += " CLIMAX. The confrontation with the main conflict. The truth comes out, the contest ends, or the battle is fought.";
+            }
         }
     }
 
@@ -336,9 +341,10 @@ OUTPUT STRICT JSON ONLY (No markdown formatting):
   }
 
   const launchStory = async () => {
-    // --- API KEY VALIDATION ---
-    const hasKey = await validateApiKey();
-    if (!hasKey) return; // Stop if cancelled or invalid
+    if (!process.env.API_KEY) {
+      alert("API Key не найден. Убедитесь, что переменная среды API_KEY установлена в Netlify.");
+      return;
+    }
     
     if (!heroRef.current) return;
     if (selectedGenre === 'Свой сюжет' && !customPremise.trim()) {
@@ -391,7 +397,7 @@ OUTPUT STRICT JSON ONLY (No markdown formatting):
       setFriend(null);
   };
 
-  const downloadPDF = () => {
+  const createPDFDoc = () => {
     const PAGE_WIDTH = 480;
     const PAGE_HEIGHT = 720;
     const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: [PAGE_WIDTH, PAGE_HEIGHT] });
@@ -401,7 +407,37 @@ OUTPUT STRICT JSON ONLY (No markdown formatting):
         if (index > 0) doc.addPage([PAGE_WIDTH, PAGE_HEIGHT], 'portrait');
         if (face.imageUrl) doc.addImage(face.imageUrl, 'JPEG', 0, 0, PAGE_WIDTH, PAGE_HEIGHT);
     });
+    return doc;
+  };
+
+  const downloadPDF = () => {
+    const doc = createPDFDoc();
     doc.save('Infinite-Heroes-Comic.pdf');
+  };
+
+  const handleShare = async () => {
+      const doc = createPDFDoc();
+      const blob = doc.output('blob');
+      const file = new File([blob], 'comic.pdf', { type: 'application/pdf' });
+
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+          try {
+              await navigator.share({
+                  files: [file],
+                  title: 'Мой комикс Infinite Heroes',
+                  text: 'Смотри, какой комикс я создал с помощью AI!',
+              });
+          } catch (error) {
+              // Ignore abort errors (user closed share dialog)
+              if ((error as any).name !== 'AbortError') {
+                  console.error('Sharing failed', error);
+              }
+          }
+      } else {
+          // Fallback
+          alert("Ваше устройство не поддерживает прямой шеринг файлов. Скачиваем PDF...");
+          downloadPDF();
+      }
   };
 
   const handleHeroUpload = async (file: File) => {
@@ -420,7 +456,6 @@ OUTPUT STRICT JSON ONLY (No markdown formatting):
 
   return (
     <div className="comic-scene">
-      {showApiKeyDialog && <ApiKeyDialog onContinue={handleApiKeyDialogContinue} />}
       
       <Setup 
           show={showSetup}
@@ -449,6 +484,7 @@ OUTPUT STRICT JSON ONLY (No markdown formatting):
           onChoice={handleChoice}
           onOpenBook={() => setCurrentSheetIndex(1)}
           onDownload={downloadPDF}
+          onShare={handleShare}
           onReset={resetApp}
       />
     </div>

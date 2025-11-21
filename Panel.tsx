@@ -14,10 +14,11 @@ interface PanelProps {
     onChoice: (pageIndex: number, choice: string) => void;
     onOpenBook: () => void;
     onDownload: () => void;
+    onShare: () => void;
     onReset: () => void;
 }
 
-export const Panel: React.FC<PanelProps> = ({ face, allFaces, onChoice, onOpenBook, onDownload, onReset }) => {
+export const Panel: React.FC<PanelProps> = ({ face, allFaces, onChoice, onOpenBook, onDownload, onShare, onReset }) => {
     if (!face) return <div className="w-full h-full bg-gray-950" />;
     if (face.isLoading && !face.imageUrl) return <LoadingFX />;
     
@@ -54,9 +55,12 @@ export const Panel: React.FC<PanelProps> = ({ face, allFaces, onChoice, onOpenBo
 
             {/* Back Cover Actions */}
             {face.type === 'back_cover' && (
-                <div className="absolute bottom-24 inset-x-0 flex flex-col items-center gap-4 z-20">
-                    <button onClick={(e) => { e.stopPropagation(); onDownload(); }} className="comic-btn bg-blue-500 text-white px-8 py-3 text-xl font-bold hover:scale-105">СКАЧАТЬ КОМИКС</button>
-                    <button onClick={(e) => { e.stopPropagation(); onReset(); }} className="comic-btn bg-green-500 text-white px-8 py-4 text-2xl font-bold hover:scale-105">СОЗДАТЬ НОВЫЙ</button>
+                <div className="absolute bottom-20 inset-x-0 flex flex-col items-center gap-3 z-20 px-6">
+                    <div className="flex gap-3 w-full justify-center">
+                         <button onClick={(e) => { e.stopPropagation(); onDownload(); }} className="comic-btn bg-blue-500 text-white flex-1 py-3 text-xl font-bold hover:scale-105">СКАЧАТЬ</button>
+                         <button onClick={(e) => { e.stopPropagation(); onShare(); }} className="comic-btn bg-purple-500 text-white flex-1 py-3 text-xl font-bold hover:scale-105">ПОДЕЛИТЬСЯ</button>
+                    </div>
+                    <button onClick={(e) => { e.stopPropagation(); onReset(); }} className="comic-btn bg-green-500 text-white w-full py-4 text-2xl font-bold hover:scale-105">СОЗДАТЬ НОВЫЙ</button>
                 </div>
             )}
         </div>
